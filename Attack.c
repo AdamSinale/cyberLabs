@@ -17,7 +17,7 @@ char *random_ip() {
 
 void send_syn_packets(int sock, struct sockaddr_in *target, int count, FILE *fp) {
     double total_time = 0.0;
-
+    
     for (int i = 0; i < count; i++) {
         clock_t start = clock();
 
@@ -61,4 +61,13 @@ int main() {
     // Open the result file
     FILE *fp = fopen("syns_results_c.txt", "w");
     if (fp == NULL) {
-        perror
+        perror("Error opening file");
+        return 1;
+    }
+
+    send_syn_packets(sock, &target, 1000000, fp);
+
+    fclose(fp);
+    close(sock);
+    return 0;
+}
