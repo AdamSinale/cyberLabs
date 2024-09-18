@@ -1,49 +1,93 @@
+
 version: '3'
 
 services:
-  ApacheServer:                             # SERVER
-    image: httpd:latest                         # latest version of Apache HTTP Server image
-    container_name: apache-10.9.0.2             # container name for id
-    cap_add:                                    # gives the sever all
+  ApacheServer:
+    image: httpd:latest                         # Latest version of Apache HTTP Server image
+    container_name: apache-10.9.0.2             # Name of the Apache container
+    cap_add:                                    # Give the server necessary capabilities
       - ALL       
-    privileged: true                            # privileges(root)
+    privileged: true                            # Run the server with root privileges
     networks:      
-      net-10.9.0.0:                             # network name
-        ipv4_address: 10.9.0.2                  # assigns Server's IP
+      net-10.9.0.0:                             # Attach to the custom network
+        ipv4_address: 10.9.0.2                  # Static IP address for the server
     ports:
-      - "80:80"                                 # container's 80 port is server's 80 port (now accessible with 'http://localhost:80')
+      - "80:80"                                 # Expose port 80 to the host (accessible via 'http://localhost:80')
 
-  Attacker:
-    image: ubuntu:latest                        # latest version of Ubuntu image
-    container_name: attacker-10.9.0.3           # container name for id
+  attacker:
+    build: ./attacker                           # Build from Dockerfile inside 'attacker' directory
+    container_name: attacker-10.9.0.3           # Name of the attacker container
     networks:
-      net-10.9.0.0:                             # network name
-        ipv4_address: 10.9.0.3                  # assigns Attacker's IP
-    command: bash -c "                          
-              /etc/init.d/openbsd-inetd start  &&  
-              tail -f /dev/null"                # run the attacker constantly
-    cap_add:                                    # gives the attacker all
-      - ALL
-    privileged: true                            # privileges(root)
-    volumes:                                    # allows sharing data between host and attacker
-      - ./volumes:/volumes
+      net-10.9.0.0:                             # Attach to the custom network
+        ipv4_address: 10.9.0.3                  # Static IP address for the attacker
+    cap_add:
+      - ALL                                     # Give the attacker necessary capabilities
+    privileged: true                            # Run the attacker with root privileges
 
   Monitor:
-    image: ubuntu:latest
-    container_name: monitor-all
-    network_mode: host
-    command: bash -c "
-              /etc/init.d/openbsd-inetd start  &&
-              tail -f /dev/null"
+    image: ubuntu:latest                        # Latest version of Ubuntu
+    container_name: monitor-all                 # Name of the monitor container
+    network_mode: host                          # Use host networking (so it can ping other containers)
+    command: bash -c "ping -c 5 10.9.0.2"       # Send 5 ping requests to Apache server
     cap_add:
-      - ALL
-    privileged: true
-    volumes:
-      - ./volumes:/volumes
+      - ALL                                     # Give monitor container necessary capabilities
+    privileged: true                            # Run monitor with root privileges
 
 networks:
   net-10.9.0.0:
     driver: bridge
     ipam:
       config:
-        - subnet: 10.9.0.0/24
+        - subnet: 10.9.0.0/24                   # Define the custom network's subnet
+
+
+
+# version: '3'
+
+# services:
+#   ApacheServer:                             # SERVER
+#     image: httpd:latest                         # latest version of Apache HTTP Server image
+#     container_name: apache-10.9.0.2             # container name for id
+#     cap_add:                                    # gives the sever all
+#       - ALL       
+#     privileged: true                            # privileges(root)
+#     networks:      
+#       net-10.9.0.0:                             # network name
+#         ipv4_address: 10.9.0.2                  # assigns Server's IP
+#     ports:
+#       - "80:80"                                 # container's 80 port is server's 80 port (now accessible with 'http://localhost:80')
+
+#   Attacker:
+#     image: ubuntu:latest                        # latest version of Ubuntu image
+#     container_name: attacker-10.9.0.3           # container name for id
+#     networks:
+#       net-10.9.0.0:                             # network name
+#         ipv4_address: 10.9.0.3                  # assigns Attacker's IP
+#     command: bash -c "                          
+#               /etc/init.d/openbsd-inetd start  &&  
+#               tail -f /dev/null"                # run the attacker constantly
+#     cap_add:                                    # gives the attacker all
+#       - ALL
+#     privileged: true                            # privileges(root)
+#     volumes:                                    # allows sharing data between host and attacker
+#       - ./volumes:/volumes
+
+#   Monitor:
+#     image: ubuntu:latest
+#     container_name: monitor-all
+#     network_mode: host
+#     command: bash -c "
+#               /etc/init.d/openbsd-inetd start  &&
+#               tail -f /dev/null"
+#     cap_add:
+#       - ALL
+#     privileged: true
+#     volumes:
+#       - ./volumes:/volumes
+
+# networks:
+#   net-10.9.0.0:
+#     driver: bridge
+#     ipam:
+#       config:
+#         - subnet: 10.9.0.0/24
