@@ -17,7 +17,7 @@ char *random_ip() {
 
 void send_syn_packets(int sock, struct sockaddr_in *target, int count, FILE *fp) {
     double total_time = 0.0;
-    
+
     for (int i = 0; i < count; i++) {
         clock_t start = clock();
 
