@@ -1,0 +1,4 @@
+Ping RTT: time=0.063 ms
+
+Ping RTT: time=0.098 ms
+
