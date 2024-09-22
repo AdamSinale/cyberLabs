@@ -10,17 +10,22 @@
 
 #define RUNS 1000000
 
+// Function to generate a random IP address for the source of each SYN packet
 char *randomIp() {
     static char ip[16];
     snprintf(ip, sizeof(ip), "%d.%d.%d.%d", rand()%256, rand()%256, rand()%256, rand()%256);
     return ip;
 }
 
+// Function to send SYN packets and log the time taken for each
 void send_syn_packets(int sock, struct sockaddr_in *target, FILE *fp) {
     double total_time = 0.0;
     
     for (int i = 1; i < RUNS+1; i++) {
-        if (i%10000 == 0){ printf("At %d percent", i/10000); }
+        if (i%10000 == 0)
+        { 
+            printf("At %d percent", i/10000); // Print progress every 10,000 packets
+        } 
         clock_t start = clock();
 
         struct sockaddr_in src;
@@ -37,7 +42,7 @@ void send_syn_packets(int sock, struct sockaddr_in *target, FILE *fp) {
         fprintf(fp, "Packet %d, Time: %f seconds\n", i, time_spent);
     }
 
-    // Log the total and average times
+        // Log the time taken for each packet
     fprintf(fp, "Total time to send all packets: %f seconds\n", total_time);
     fprintf(fp, "Average time per packet: %f seconds\n", total_time / RUNS);
 }
