@@ -1,5 +1,14 @@
 from scapy.all import *
+"""
+import random
+import string
 
+def generate_random_subdomain(length=5):
+    letters = string.ascii_lowercase
+    return ''.join(random.choice(letters) for i in range(length))
+subdomain = generate_random_subdomain()
+random_hostname =subdomain + '.example.com'
+"""
 # Parameters
 victim_dns_server = '10.9.0.53'        # IP of the victim's DNS server
 random_hostname = 'twysw.example.com'  # Random hostname for attack
