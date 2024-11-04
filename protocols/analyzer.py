@@ -71,11 +71,13 @@ class Analyzer:
         if p.tcp.dstport == 443:
             if not self.validate_tls(p):  # Combine TLS validation and length check
                 return False, "Invalid TLS on HTTPS"
-            elif len(p) > 512:
+            elif len(p) > 1460:
                 return False, "Large HTTPS packet"
         if p.tcp.flags_psh or p.tcp.flags_urg:
-            if len(p) > 1024:                                   # Large segments with PSH/URG flag may indicate an attack
+            if len(p) > 1460:                                   # Large segments with PSH/URG flag may indicate an attack
                 return False, "Large TCP segment with PUSH or URG flag"
+        if len(p) > 1500:  # Typical MTU size for Ethernet
+            return False, "Packet size exceeds typical MTU"
         if p.tcp.flags_syn and p.tcp.flags_rst:                 # SYN and RST together are contradictory
             return False, "Invalid SYN+RST combination"
         return True, ""
