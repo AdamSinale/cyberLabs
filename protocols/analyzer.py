@@ -26,6 +26,10 @@ class Analyzer:
                         self.invalid_flows.append((flow_key, reason))
             except queue.Empty:
                 continue                                               # Continue if the queue is empty but sniffing is ongoing
+        # print("Valid Flows:", self.valid_flows)
+        # print("Invalid Flows:", self.invalid_flows)
+        print(f"Valid Flows: {len(self.valid_flows)} Packets")
+        print(f"Invalid Flows: {len(self.invalid_flows)} Packets")
         return self.valid_flows, self.invalid_flows
 
     def isInternal(self, ip):

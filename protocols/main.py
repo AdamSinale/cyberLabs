@@ -3,7 +3,9 @@ from sniffer import *
 from analyzer import *
 import threading
 import time
-
+import subprocess
+import os
+from scapy.all import rdpcap, sendp
 
 class App:
     def __init__(self, root):
@@ -16,8 +18,11 @@ class App:
         self.sniffBtn.pack(pady=10)
         self.statusLbl = tk.Label(root, text="Status: Idle", fg="green")         # UI - text
         self.statusLbl.pack(pady=20)
+        self.replayBtn = tk.Button(root, text="Run Simulation",command=self.run_simulation)  # UI - Run attack simulation
+        self.replayBtn.pack(pady=10)
 
-        self.interface = 'Wi-Fi'                                                  # Default interface
+        self.interface = 'Wi-Fi' if os.name=='nt' else 'eth0'                              # Default interface
+        self.pcap_file = os.path.join(os.path.dirname(__file__), "attack_simulation.pcap")
 
     def mode(self):
         if not self.sniffer.sniffing:
@@ -40,11 +45,32 @@ class App:
         self.statusLbl.config(text="Status: Stopped", fg="green")                # Change button
         self.sniffBtn.config(text="Start Sniffing")
 
-        self.sniff_thread.join()
-        self.analysis_thread.join()
+        if threading.current_thread() != self.sniff_thread:
+            self.sniff_thread.join()
+        if threading.current_thread() != self.analysis_thread:
+            self.analysis_thread.join()
 
-        print("Valid Flows:", self.analyzer.valid_flows)
-        print("Invalid Flows:", self.analyzer.invalid_flows)
+    def run_simulation(self):
+        self.sniffer.sniffing = True
+        self.statusLbl.config(text="Status: Running Simulation...", fg="blue")
+
+        self.sniff_thread = threading.Thread(target=self.replay_attack)
+        self.sniff_thread.start()
+        self.analysis_thread = threading.Thread(target=self.analyzer.validate, args=(self.sniffer,))     # new thread for analyzing sniffed packets
+        self.analysis_thread.start()
+
+    def replay_attack(self):
+        try:
+            print(f"Replaying attack simulation from {self.pcap_file}...")
+            packets = rdpcap(self.pcap_file)
+            for packet in packets:
+                self.sniffer.buffer.put(packet)  # Inject packets directly into the sniffer's buffer
+            self.stop_sniffing()
+            print("Replay complete.")
+        except subprocess.CalledProcessError as e:
+            print(f"Error while replaying pcap file: {e}")
+        finally:
+            self.statusLbl.config(text="Status: Idle", fg="green")
 
 root = tk.Tk()
 app = App(root)

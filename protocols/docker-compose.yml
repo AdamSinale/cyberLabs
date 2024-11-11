@@ -1,0 +1,45 @@
+version: '3.7'
+
+services:
+  attacker:
+    image: python:3.9
+    container_name: attacker
+    volumes:
+      - ./pcaps:/pcaps
+      - ./attacker.py:/attacker.py
+    command: python /attacker.py
+    networks:
+      - net-10.10.0.0
+
+  tcpreplay:
+    image: ubuntu:latest
+    container_name: tcpreplay
+    depends_on:
+      - attacker
+    volumes:
+      - ./pcaps:/pcaps
+    networks:
+      - net-10.10.0.0
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    command: bash -c "apt-get update && apt-get install -y tcpreplay && tcpreplay -i eth0 /pcaps/attacker_simulation.pcap && tail -f /dev/null"
+
+  analyzer:
+    image: python:3.9
+    container_name: analyzer
+    volumes:
+      - ./pcaps:/pcaps
+      - ./analyzer.py:/analyzer.py
+    depends_on:
+      - tcpreplay
+    command: python /analyzer.py
+    networks:
+      - net-10.10.0.0
+
+networks:
+  net-10.10.0.0:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.10.0.0/24
