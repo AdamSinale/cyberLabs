@@ -7,7 +7,7 @@ class Sniffer:
         self.sniffing = False
         self.buffer = queue.Queue()
 
-    def sniff_packets(self, interface='Wi-Fi'):
+    def sniff_packets(self, interface='eth0'):
         self.sniffing = True
         print(f"Sniffing on interface {interface}...")
         loop = asyncio.new_event_loop()                          # Create a new event loop

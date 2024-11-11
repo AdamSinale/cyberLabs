@@ -51,21 +51,10 @@ class App:
             self.analysis_thread.join()
 
     def run_simulation(self):
-        self.sniffer.sniffing = True
         self.statusLbl.config(text="Status: Running Simulation...", fg="blue")
-
-        self.sniff_thread = threading.Thread(target=self.replay_attack)
-        self.sniff_thread.start()
-        self.analysis_thread = threading.Thread(target=self.analyzer.validate, args=(self.sniffer,))     # new thread for analyzing sniffed packets
-        self.analysis_thread.start()
-
-    def replay_attack(self):
         try:
             print(f"Replaying attack simulation from {self.pcap_file}...")
-            packets = rdpcap(self.pcap_file)
-            for packet in packets:
-                self.sniffer.buffer.put(packet)  # Inject packets directly into the sniffer's buffer
-            self.stop_sniffing()
+            subprocess.run(["sudo", "tcpreplay", "-i", self.interface, self.pcap_file], check=True)
             print("Replay complete.")
         except subprocess.CalledProcessError as e:
             print(f"Error while replaying pcap file: {e}")
