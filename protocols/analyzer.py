@@ -3,16 +3,14 @@ import time
 
 class Analyzer:
     def __init__(self):
-        self.valid_flows = []
-        self.invalid_flows = []
+        self.flows = []
         self.internalIPs = ['127.0.0.1']
         self.icmp_attempts = {}  # Track outgoing connection attempts to detect frequency anomalies
         self.dns_attempts = {}   # Track outgoing connection attempts to detect frequency anomalies
         self.http_attempts = {}  # Track outgoing connection attempts to detect frequency anomalies
 
     def validate(self, sniffer):
-        self.valid_flows = []
-        self.invalid_flows = []
+        self.flows = []
         while sniffer.sniffing or not sniffer.buffer.empty():
             try:
                 p = sniffer.buffer.get(timeout=1)  # Get packet from queue with a timeout
@@ -26,15 +24,10 @@ class Analyzer:
                         flow_key = (p.ip.src, p.ip.dst, None, 'UNKNOWN')
                     isValid, reason = self.isValid(p)
                     print(reason)
-                    if isValid:
-                        self.valid_flows.append(flow_key)
-                    else:
-                        self.invalid_flows.append((flow_key, reason))
+                    self.flows.append((flow_key, isValid, reason))
             except queue.Empty:
                 continue  # Continue if the queue is empty but sniffing is ongoing
-        print(f"Valid Flows: {len(self.valid_flows)} Packets")
-        print(f"Invalid Flows: {len(self.invalid_flows)} Packets")
-        return self.valid_flows, self.invalid_flows
+        print(f"Valid Flows: {len(self.flows)} Packets")
 
     def isInternal(self, ip):
         return ip in self.internalIPs
@@ -114,8 +107,7 @@ class Analyzer:
                 return False, "Invalid DNS response port"
             if len(p[transport_layer].payload) > 512:  # Check DNS response size
                 return False, "Possible DNS tunneling"
-            if not self.track_attempts(p['IP'].dst, self.dns_attempts, 15,
-                                       15):  # Track frequency of outgoing HTTP requests
+            if not self.track_attempts(p['IP'].dst, self.dns_attempts,15,15):  # Track frequency of outgoing HTTP requests
                 return False, "High frequency of DNS requests"
         elif dstport == '53':
             return False, "Invalid port for none DNS"
