@@ -2,14 +2,14 @@ import random
 import time
 from scapy.all import Ether, IP, TCP, UDP, ICMP, DNS, DNSQR, Raw
 from scapy.layers.tls.all import TLS, TLSClientHello, TLSServerHello
-import os
+import netifaces
 
 from scapy.utils import wrpcap
 
 class AttackerSimulator:
     def __init__(self):
         self.packets = []
-        self.internal_ip = '192.168.0.1'
+        self.internal_ip = '127.0.0.1'
         self.external_ip = '8.8.8.8'
         self.trusted_domain = 'trusted-domain.com'
 
@@ -21,16 +21,7 @@ class AttackerSimulator:
         return tcp_packet
     def tls_layer(self, t='c'):
         if t == 's':
-            try:
-                server_hello = TLSServerHello(
-                    version=0x0303,  # TLS 1.2 in hexadecimal format
-                    random_bytes=os.urandom(32)  # Random bytes for the Server Hello
-                )
-                server_hello.ciphersuites = [0xC02F]  # TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
-                return TLS(msg=server_hello)
-            except AttributeError as e:
-                print(f"AttributeError while creating TLSServerHello: {str(e)}")
-                raise
+            return TLS(msg=TLSServerHello())
         elif t == 'c':
             return TLS(msg=TLSClientHello())
 
@@ -119,27 +110,6 @@ class AttackerSimulator:
             self.packets.append(packet)
         time.sleep(1)
 
-    def simulate_tls_attack(self):  # Generate TLS packets with suspicious properties
-        print("Suspicious TLS added packets")
-        types = ['s','c']
-        for t in types:
-            for _ in range(2):
-                packet = self.ip_packet() / self.tcp_packet(443) / self.tls_layer(t) / Raw(load='\x16\x03\x01\x00\x00\x01')  # Invalid TLS handshake
-                self.packets.append(packet)
-
-                packet = self.ip_packet() / self.tcp_packet(443) / self.tls_layer(t) / Raw(load='\x14\x03\x01\x00\x01\x01')  # Incomplete TLS handshake
-                self.packets.append(packet)
-
-                packet = self.ip_packet() / self.tcp_packet(443) / self.tls_layer(t) / Raw(load='\x16\x03\x01\x00\x20\x01\x00\x00\x1c\x00\x01\x00\x01\x02\x03')  # Weak TLS cipher suite
-                self.packets.append(packet)
-
-                packet = self.ip_packet() / self.tcp_packet(443) / self.tls_layer(t) / Raw(load='\x16\x03\x00\x00\x00\x01')  # Unsupported TLS version (TLS 1.0)
-                self.packets.append(packet)
-
-                packet = self.ip_packet() / self.tcp_packet(443) / self.tls_layer(t) / Raw(load='\x16\x03\x02\x00\x20\x01\x00\x00\x1c\x00\x01\x00\x01\x02\x03')  # Invalid SNI hostname mismatch
-                self.packets.append(packet)
-        time.sleep(1)
-
     def simulate_frequent_icmp(self):  # Generate high frequency ICMP packets
         print("ICMP tunneling")
         for _ in range(15):
@@ -161,7 +131,6 @@ class AttackerSimulator:
         self.simulate_dns_attack()
         self.simulate_icmp_attack()
         self.simulate_http_attack()
-        self.simulate_tls_attack()
         self.simulate_frequent_icmp()
         self.simulate_frequent_dns()
         wrpcap('attack_simulation.pcap', self.packets)

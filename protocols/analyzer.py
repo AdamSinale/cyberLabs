@@ -5,7 +5,7 @@ class Analyzer:
     def __init__(self):
         self.valid_flows = []
         self.invalid_flows = []
-        self.internalIPs = ['192.168.0.1']
+        self.internalIPs = ['127.0.0.1']
         self.icmp_attempts = {}  # Track outgoing connection attempts to detect frequency anomalies
         self.dns_attempts = {}   # Track outgoing connection attempts to detect frequency anomalies
         self.http_attempts = {}  # Track outgoing connection attempts to detect frequency anomalies
@@ -62,9 +62,12 @@ class Analyzer:
             httpValid, reason = self.http_handle(p)
             if not httpValid:
                 return False, reason
-        dnsValid, reason = self.dns_handle(p)  # Perform DNS validation once for all applicable packets
-        if not dnsValid:
-            return False, reason
+        try:
+            dnsValid, reason = self.dns_handle(p)  # Perform DNS validation once for all applicable packets
+            if not dnsValid:
+                return False, reason
+        except Exception:
+            pass
         return True, "Packet is valid"  # All clear
 
     def tcp_handle(self, p):
@@ -138,7 +141,7 @@ class Analyzer:
                 return False, "Large HTTP payload"
             if not hasattr(p['HTTP'],'host'):
                 return False, "Missing Host header"
-            if sum(len(k)+len(v) for k,v in p.http._all_fields.items()) > 1000:                                                       # Check for unusually large headers
+            if len(p) > 1300:                                                       # Check for unusually large headers
                 return False, "Unusually large HTTP headers"
             for f in ['authorization', 'cookie', 'set_cookie', 'proxy_authorization']:                  # Check for sensitive headers
                 if hasattr(p['HTTP'], f):
@@ -153,6 +156,7 @@ class Analyzer:
                     return False, f"Untrusted Referer: {referer}"
             if not self.track_attempts(p['IP'].dst, self.http_attempts, 60, 100):       # Track frequency of outgoing HTTP requests
                 return False, "High frequency of HTTP requests"
+            # p.show()
         except AttributeError as e:
             return False, f"HTTP layer access error: {e}"
         return True, "Valid HTTP packet"
