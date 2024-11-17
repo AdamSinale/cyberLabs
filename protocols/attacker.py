@@ -1,9 +1,10 @@
 import random
 import time
 from scapy.all import Ether, IP, TCP, UDP, ICMP, DNS, DNSQR, Raw
-from scapy.utils import wrpcap
-import queue
+from scapy.layers.tls.all import TLS, TLSClientHello, TLSServerHello
+import os
 
+from scapy.utils import wrpcap
 
 class AttackerSimulator:
     def __init__(self):
@@ -16,7 +17,22 @@ class AttackerSimulator:
         return Ether() / IP(src=self.internal_ip, dst=self.external_ip)
 
     def tcp_packet(self, dp, flags=''):
-        return TCP(sport=random.randint(1024, 65535), dport=dp, flags=flags)
+        tcp_packet = TCP(sport=random.randint(1024, 65535), dport=dp, flags=flags)
+        return tcp_packet
+    def tls_layer(self, t='c'):
+        if t == 's':
+            try:
+                server_hello = TLSServerHello(
+                    version=0x0303,  # TLS 1.2 in hexadecimal format
+                    random_bytes=os.urandom(32)  # Random bytes for the Server Hello
+                )
+                server_hello.ciphersuites = [0xC02F]  # TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+                return TLS(msg=server_hello)
+            except AttributeError as e:
+                print(f"AttributeError while creating TLSServerHello: {str(e)}")
+                raise
+        elif t == 'c':
+            return TLS(msg=TLSClientHello())
 
     def udp_packet(self, dp):
         return UDP(sport=random.randint(1024, 65535), dport=dp)
@@ -30,11 +46,13 @@ class AttackerSimulator:
             packet = self.ip_packet() / self.tcp_packet(80, 'SR')  # SYN and RST flags together
             self.packets.append(packet)
 
-            packet = self.ip_packet() / self.tcp_packet(80, 'P') / Raw(load='X' * 1470)  # Large segment with PUSH flag
+            packet = self.ip_packet() / self.tcp_packet(80, 'P') / Raw(load='X' * 1430)  # Large segment with PUSH flag
             self.packets.append(packet)
-            packet = self.ip_packet() / self.tcp_packet(80, 'U') / Raw(load='X' * 1470)  # Large segment with URG flag
+            packet = self.ip_packet() / self.tcp_packet(80, 'U') / Raw(load='X' * 1430)  # Large segment with URG flag
             self.packets.append(packet)
-            packet = self.ip_packet() / self.tcp_packet(443) / Raw(load='X' * 1470)  # Large TCP segment
+            packet = self.ip_packet() / self.tcp_packet(443) / self.tls_layer('s') / Raw(load='X' * 1430)  # Large TCP segment
+            self.packets.append(packet)
+            packet = self.ip_packet() / self.tcp_packet(443) / self.tls_layer('c') / Raw(load='X' * 1430)  # Large TCP segment
             self.packets.append(packet)
             packet = self.ip_packet() / self.tcp_packet(80) / Raw(load='X' * 2000)  # Large TCP segment
             self.packets.append(packet)
@@ -53,23 +71,20 @@ class AttackerSimulator:
     def simulate_dns_attack(self):  # Generate DNS packets with suspicious properties
         print("Suspicious DNS packets")
         for _ in range(5):
-            packet = self.ip_packet() / self.udp_packet(123) / DNS(rd=1, qd=DNSQR(
-                qname='malicious.com'))  # DNS on non-standard port
+            packet = self.ip_packet() / self.udp_packet(68) / DNS(rd=1,qd=DNSQR(qname='malicious.com'))  # DNS on non-standard port
             self.packets.append(packet)
             packet = self.ip_packet() / self.udp_packet(53)  # DNS port on non-DNS
             self.packets.append(packet)
 
-            packet = self.ip_packet() / self.udp_packet(53) / DNS(rd=1, qd=DNSQR(qname='malicious.com')) / Raw(
-                load='X' * 600)  # Possible DNS tunneling
+            packet = self.ip_packet() / self.udp_packet(53) / DNS(rd=1,qd=DNSQR(qname='malicious.com')) / Raw(load='X' * 600)  # Possible DNS tunneling
             self.packets.append(packet)
         time.sleep(1)
 
     def no_prior_dns(self):
-        packet = self.ip_packet() / self.udp_packet(123)  # no prior DNS
+        packet = self.ip_packet() / self.udp_packet(68)  # no prior DNS
         self.packets.append(packet)
 
-        packet = self.ip_packet() / self.udp_packet(53) / DNS(rd=1, qd=DNSQR(
-            qname='good.com'))  # Now send DNS for next packets
+        packet = self.ip_packet() / self.udp_packet(53) / DNS(rd=1,qd=DNSQR(qname='good.com'))  # Now send DNS for next packets
         self.packets.append(packet)
 
     def simulate_icmp_attack(self):  # Generate ICMP packets with suspicious properties
@@ -82,56 +97,47 @@ class AttackerSimulator:
     def simulate_http_attack(self):  # Generate HTTP packets with suspicious properties
         print("Suspicious HTTP packets")
         for _ in range(5):
-            packet = self.ip_packet() / self.tcp_packet(80) / Raw(
-                load='GET / HTTP/1.1\r\nAuthorization: Basic YWxhZGRpbjpvcGVuc2VzYW1l\r\n\r\n')  # HTTP with sensitive headers
+            packet = self.ip_packet() / self.tcp_packet(80) / Raw(load='GET / HTTP/1.1\r\nHost: example.com\r\nAuthorization: Basic YWxhZGRpbjpvcGVuc2VzYW1l\r\n\r\n')  # HTTP with sensitive headers
             self.packets.append(packet)
 
-            packet = self.ip_packet() / self.tcp_packet(80) / Raw(
-                load='GET / HTTP/1.1\r\nReferer: http://untrusted.com\r\n\r\n')  # Untrusted Referer
+            packet = self.ip_packet() / self.tcp_packet(80) / Raw(load='GET / HTTP/1.1\r\nHost: example.com\r\nReferer: http://untrusted.com\r\n\r\n')  # Untrusted Referer
             self.packets.append(packet)
 
-            packet = self.ip_packet() / self.tcp_packet(80) / Raw(load='GET / HTTP/1.1\r\n\r\n')  # Missing Host header
+            packet = self.ip_packet() / self.tcp_packet(80) / Raw(load='GET / HTTP/1.1\r\n\r\n')  # no "Host" header
             self.packets.append(packet)
 
-            packet = self.ip_packet() / self.tcp_packet(80) / Raw(
-                load='GET / HTTP/1.1\r\nContent-Length: 100\r\n\r\n')  # Incorrect Content-Length
+            packet = self.ip_packet() / self.tcp_packet(80) / Raw(load='GET / HTTP/1.1\r\nHost: example.com\r\nContent-Length: 1000\r\n\r\n' + 'X' * 1000)  # Long payload
             self.packets.append(packet)
 
-            packet = self.ip_packet() / self.tcp_packet(80) / Raw(
-                load='GET / HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n')  # Chunked Transfer-Encoding
+            packet = self.ip_packet() / self.tcp_packet(80) / Raw(load='GET / HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding: chunked\r\n\r\n7\r\nMozilla\r\n9\r\nDeveloper\r\n7\r\nNetwork\r\n0\r\n\r\n')  # Chunked Transfer-Encoding
             self.packets.append(packet)
 
-            packet = self.ip_packet() / self.tcp_packet(80) / Raw(
-                load='GET / HTTP/1.1\r\nUser-Agent: python-requests/2.25.1\r\n\r\n')  # Suspicious User-Agent
+            packet = self.ip_packet() / self.tcp_packet(80) / Raw(load='GET / HTTP/1.1\r\nHost: example.com\r\nUser-Agent: python-requests/2.25.1\r\n\r\n')  # Suspicious User-Agent
             self.packets.append(packet)
 
-            packet = self.ip_packet() / self.tcp_packet(80) / Raw(
-                load='GET / HTTP/1.1\r\nHeader1: ' + 'X' * 2200 + '\r\n\r\n')  # Unusually large HTTP headers
+            packet = self.ip_packet() / self.tcp_packet(80) / Raw(load='GET / HTTP/1.1\r\nHost: example.com\r\nHeader1: ' + 'X' * 1200 + '\r\n\r\n')  # Unusually large HTTP headers
             self.packets.append(packet)
         time.sleep(1)
 
     def simulate_tls_attack(self):  # Generate TLS packets with suspicious properties
         print("Suspicious TLS added packets")
-        for _ in range(5):
-            packet = self.ip_packet() / self.tcp_packet(443) / Raw(
-                load='\x16\x03\x01\x00\x00\x01')  # Invalid TLS handshake
-            self.packets.append(packet)
+        types = ['s','c']
+        for t in types:
+            for _ in range(2):
+                packet = self.ip_packet() / self.tcp_packet(443) / self.tls_layer(t) / Raw(load='\x16\x03\x01\x00\x00\x01')  # Invalid TLS handshake
+                self.packets.append(packet)
 
-            packet = self.ip_packet() / self.tcp_packet(443) / Raw(
-                load='\x14\x03\x01\x00\x01\x01')  # Incomplete TLS handshake
-            self.packets.append(packet)
+                packet = self.ip_packet() / self.tcp_packet(443) / self.tls_layer(t) / Raw(load='\x14\x03\x01\x00\x01\x01')  # Incomplete TLS handshake
+                self.packets.append(packet)
 
-            packet = self.ip_packet() / self.tcp_packet(443) / Raw(
-                load='\x16\x03\x01\x00\x20\x01\x00\x00\x1c\x00\x01\x00\x01\x02\x03')  # Weak TLS cipher suite
-            self.packets.append(packet)
+                packet = self.ip_packet() / self.tcp_packet(443) / self.tls_layer(t) / Raw(load='\x16\x03\x01\x00\x20\x01\x00\x00\x1c\x00\x01\x00\x01\x02\x03')  # Weak TLS cipher suite
+                self.packets.append(packet)
 
-            packet = self.ip_packet() / self.tcp_packet(443) / Raw(
-                load='\x16\x03\x00\x00\x00\x01')  # Unsupported TLS version (TLS 1.0)
-            self.packets.append(packet)
+                packet = self.ip_packet() / self.tcp_packet(443) / self.tls_layer(t) / Raw(load='\x16\x03\x00\x00\x00\x01')  # Unsupported TLS version (TLS 1.0)
+                self.packets.append(packet)
 
-            packet = self.ip_packet() / self.tcp_packet(443) / Raw(
-                load='\x16\x03\x02\x00\x20\x01\x00\x00\x1c\x00\x01\x00\x01\x02\x03')  # Invalid SNI hostname mismatch
-            self.packets.append(packet)
+                packet = self.ip_packet() / self.tcp_packet(443) / self.tls_layer(t) / Raw(load='\x16\x03\x02\x00\x20\x01\x00\x00\x1c\x00\x01\x00\x01\x02\x03')  # Invalid SNI hostname mismatch
+                self.packets.append(packet)
         time.sleep(1)
 
     def simulate_frequent_icmp(self):  # Generate high frequency ICMP packets
@@ -139,14 +145,14 @@ class AttackerSimulator:
         for _ in range(15):
             packet = self.ip_packet() / ICMP()
             self.packets.append(packet)
-            time.sleep(0.5)
+            time.sleep(0.25)
 
     def simulate_frequent_dns(self):  # Generate high frequency DNS packets
         print("DNS tunneling")
         for _ in range(15):
             packet = self.ip_packet() / self.udp_packet(53) / DNS(rd=1, qd=DNSQR(qname='frequent.com'))
             self.packets.append(packet)
-            time.sleep(0.5)
+            time.sleep(0.25)
 
     def simulate_all_attacks(self):
         self.no_prior_dns()
