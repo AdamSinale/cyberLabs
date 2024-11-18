@@ -1,3 +1,5 @@
+# sudo ip link set dev eth0 mtu 3000 (for large packets)
+
 import tkinter as tk
 from sniffer import *
 from analyzer import *
