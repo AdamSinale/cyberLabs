@@ -1,45 +1,23 @@
-version: '3.7'
-
 services:
-  attacker:
-    image: python:3.9
-    container_name: attacker
-    volumes:
-      - ./pcaps:/pcaps
-      - ./attacker.py:/attacker.py
-    command: python /attacker.py
-    networks:
-      - net-10.10.0.0
-
-  tcpreplay:
-    image: ubuntu:latest
-    container_name: tcpreplay
-    depends_on:
-      - attacker
-    volumes:
-      - ./pcaps:/pcaps
-    networks:
-      - net-10.10.0.0
+  target:
+    build: .
+    container_name: target-10.9.0.4
+    tty: true
     cap_add:
-      - NET_ADMIN
-      - NET_RAW
-    command: bash -c "apt-get update && apt-get install -y tcpreplay && tcpreplay -i eth0 /pcaps/attacker_simulation.pcap && tail -f /dev/null"
-
-  analyzer:
-    image: python:3.9
-    container_name: analyzer
+      - ALL
+    environment:
+      - DISPLAY=host.docker.internal:0
     volumes:
-      - ./pcaps:/pcaps
-      - ./analyzer.py:/analyzer.py
-    depends_on:
-      - tcpreplay
-    command: python /analyzer.py
+      - ./volumes:/volumes
+      - /tmp/.X11-unix:/tmp/.X11-unix  # Allow access to X server
     networks:
-      - net-10.10.0.0
+      default:
+        ipv4_address: 10.9.0.4
+    command: bash -c "/etc/init.d/openbsd-inetd start && ip link set dev eth0 mtu 3000 && tail -f /dev/null"
 
 networks:
-  net-10.10.0.0:
+  default:
     driver: bridge
     ipam:
       config:
-        - subnet: 10.10.0.0/24
+        - subnet: 10.9.0.0/24

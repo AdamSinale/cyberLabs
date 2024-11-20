@@ -1,0 +1,84 @@
+\documentclass{article}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\title{Network Traffic Analysis Report for IDS and Attack Simulation}
+\author{}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\section{Overview}
+
+This document describes the implementation and findings of an Intrusion Detection System (IDS) with a simulated attack scenario. The IDS was built using a Python-based analysis pipeline involving packet sniffing, attack generation, and real-time analysis. The solution includes multiple components such as the packet sniffer (\texttt{sniffer.py}), the packet analyzer (\texttt{analyzer.py}), and the attack simulation module (\texttt{attacker.py}). The main graphical interface (\texttt{main.py}) presents the system visually to provide insights into the results of the analysis and attack replays.
+
+\section{Components}
+
+\subsection{Sniffer (\texttt{sniffer.py})}
+The Sniffer is implemented using \texttt{pyshark}, a Python wrapper for the Wireshark dissector, which allows live capturing of network packets. Captured packets are continuously added to a buffer, which is shared with the analyzer.
+\begin{itemize}
+    \item Interface selected: Default interface is 'Wi-Fi' for Windows and 'eth0' for Linux-based systems.
+    \item Capturing runs asynchronously, leveraging \texttt{asyncio} to process packets in a controlled event loop.
+\end{itemize}
+
+\subsection{Analyzer (\texttt{analyzer.py})}
+The analyzer is responsible for validating the captured packets. It extracts flows and applies checks for each packet, including checks for HTTP payloads, DNS tunneling attempts, suspicious User-Agent strings, and other anomalies.
+\begin{itemize}
+    \item The analyzer maintains two lists for valid and invalid flows.
+    \item Different types of anomalies are captured and flagged for further analysis.
+\end{itemize}
+
+\subsection{Attacker (\texttt{attacker.py})}
+This module generates a series of packets meant to simulate different attack types, including TCP, UDP, DNS, ICMP, and HTTP-based attacks.
+\begin{itemize}
+    \item \textbf{HTTP attack simulations}: Generating packets with malicious headers, large payloads, missing Host headers, and unusual User-Agent strings.
+    \item \textbf{DNS and ICMP attacks}: Generating suspicious packets that simulate amplification and data tunneling scenarios.
+\end{itemize}
+
+\subsection{Main Interface (\texttt{main.py})}
+The graphical interface of the application is developed in \texttt{tkinter}, and allows the user to start packet sniffing, simulate an attack, and visualize the network analysis.
+\begin{itemize}
+    \item Users can select whether to start capturing packets in real-time.
+    \item The application replays the attack simulation using \texttt{tcpreplay}.
+    \item Graphical analysis: Matplotlib visualizes cumulative packet data and breakdowns by protocol for valid, invalid, and total packet counts.
+\end{itemize}
+
+\section{Findings}
+
+\subsection{TCP and UDP Anomalies}
+TCP packets with combinations like SYN and RST flags, large TCP segments, and UDP packets on non-standard ports (e.g., DNS on port 68 instead of 53) were flagged as anomalies.
+
+\subsection{HTTP Packet Inspection}
+Several HTTP requests were flagged due to missing \texttt{Host} headers, suspicious headers like \texttt{Authorization}, and incorrectly specified \texttt{Content-Length} values. A packet with \texttt{Transfer-Encoding: chunked} was successfully created to simulate chunked encoding.
+
+\subsection{DNS Validation}
+DNS packets not originating from port 53 were flagged, as they could indicate an attempt to bypass DNS-related security measures. Packet payloads were also inspected to detect potential DNS tunneling by examining large DNS responses.
+
+\subsection{High Frequency Alerts}
+Frequency-based anomalies were tracked, where rapid bursts of HTTP and DNS requests from the same IP were flagged as potential attacks, indicating possible data exfiltration attempts.
+
+\subsection{ICMP Analysis}
+ICMP packets were inspected for unusually large payload sizes, which could indicate tunneling activities.
+
+\section{Challenges}
+
+\begin{itemize}
+    \item Certain fields, such as \texttt{ciphersuite} in \texttt{TLSServerHello}, were found to be difficult to set using Scapy's high-level abstractions. Manual adjustments were required to correctly simulate server hello messages for attack generation.
+    \item There were challenges involving the correct identification of layers using \texttt{pyshark}, especially for non-standard port usage. Some packets were difficult to parse if they did not conform strictly to their expected port settings, causing layers like \texttt{DNS} to be missing.
+\end{itemize}
+
+\section{Recommendations for Improvement}
+
+\begin{itemize}
+    \item The use of standardized libraries like Scapy and Pyshark makes for easy prototyping, but packet-specific tweaks can become cumbersome. Future improvements might include writing a custom packet parser for better control over generated packet fields.
+    \item More complex anomaly detection mechanisms could be introduced, such as ML-based models to detect patterns that deviate from normal behavior over a larger set of features, such as inter-packet timing and statistical analysis of payload content.
+\end{itemize}
+
+\section{Summary}
+
+The implemented IDS solution provided a robust way to identify network anomalies and flag potentially malicious activities. The real-time capabilities, along with replaying attack simulations, gave insights into the impact of common network attacks. The visual interface allowed for an easily understandable breakdown of detected events, making it useful for monitoring and analysis purposes.
+
+The full implementation integrates packet capture, live analysis, and attack generation within a cohesive UI, providing a comprehensive solution for demonstrating the concepts of network monitoring, attack detection, and response in educational or development settings.
+
+\end{document}
