@@ -4,10 +4,8 @@ import tkinter as tk
 from sniffer import *
 from analyzer import *
 import threading
-import time
 import subprocess
 import os
-from scapy.all import rdpcap, sendp
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import matplotlib.gridspec as gridspec
@@ -39,13 +37,13 @@ class App:
 
         self.canvas = FigureCanvasTkAgg(self.fig, master=self.graph_frame)
         self.canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+        print("GUI created")
 
     def mode(self):
         if not self.sniffer.sniffing:
             self.start_sniffing()  # Start sniffing
         else:
             self.stop_sniffing()  # Stop sniffing
-
     def start_sniffing(self):
         self.sniffer.sniffing = True
         self.sniffBtn.config(text="Stop Sniffing")  # Change button
@@ -56,7 +54,6 @@ class App:
         self.analysis_thread = threading.Thread(target=self.analyzer.validate, args=(self.sniffer,))  # new thread for analyzing sniffed packets
         self.analysis_thread.start()
         self.update_graph()  # Start updating the graph in real time
-
     def stop_sniffing(self):
         self.sniffer.sniffing = False  # stop sniffing
         self.statusLbl.config(text="Status: Stopped", fg="green")  # Change button
@@ -85,7 +82,6 @@ class App:
             self.show_analysis_graph(real_time=True)
             self.show_cumulative_packet_graph(real_time=True)
             self.root.after(1000, self.update_graph)  # Update every second
-
     def show_analysis_graph(self, real_time=False):
         protocols = set()
         for flow in self.analyzer.flows:
@@ -115,7 +111,6 @@ class App:
 
         if real_time:
             self.canvas.draw()
-
     def show_cumulative_packet_graph(self, real_time=False):
         valid_x = [0]
         valid_y = [0]

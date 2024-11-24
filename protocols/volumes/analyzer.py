@@ -4,7 +4,7 @@ import time
 class Analyzer:
     def __init__(self):
         self.flows = []
-        self.internalIPs = ['127.0.0.1']
+        self.internalIPs = ['10.9.0.4']
         self.icmp_attempts = {}  # Track outgoing connection attempts to detect frequency anomalies
         self.dns_attempts = {}   # Track outgoing connection attempts to detect frequency anomalies
         self.http_attempts = {}  # Track outgoing connection attempts to detect frequency anomalies
@@ -28,10 +28,6 @@ class Analyzer:
             except queue.Empty:
                 continue  # Continue if the queue is empty but sniffing is ongoing
         print(f"Valid Flows: {len(self.flows)} Packets")
-
-    def isInternal(self, ip):
-        return ip in self.internalIPs
-
     def isValid(self, p):
         if self.isInternal(p.ip.src) and self.isInternal(p.ip.dst):
             return True, "Internal traffic - skipping"
@@ -62,6 +58,8 @@ class Analyzer:
         except Exception:
             pass
         return True, "Packet is valid"  # All clear
+    def isInternal(self, ip):
+        return ip in self.internalIPs
 
     def tcp_handle(self, p):
         if p.tcp.dstport not in ['80','443','53']:  # Only allow HTTP, HTTPS, or DNS on valid ports
@@ -87,14 +85,12 @@ class Analyzer:
                     return False, "Large TCP segment with URG flag"
 
         return True, ""
-
     def udp_handle(self, p):
         if p.udp.dstport not in ['53','123','68']:  # Only allow DNS and NTP traffic
             return False, f"Invalid UDP port: {p.udp.dstport}"
         if p.udp.dstport == '123' and len(p) != 48:
             return False, "Invalid NTP packet"  # NTP packets must have a specific length
         return True, ""
-
     def dns_handle(self, p):
         dns_layer = None
         try: dns_layer = p.dns
@@ -119,14 +115,12 @@ class Analyzer:
         elif not self.DNS_set(p['IP'].dst):  # not DNS and not DNS port, but had DNS before?
             return False, "No previous DNS set up"
         return True, ""
-
     def icmp_handle(self, p):
         if len(p) > 64:  # Too big for just pinging - might contain additional info
             return False, "Large ICMP packet"
         if not self.track_attempts(p['IP'].dst, self.icmp_attempts, 10, 10):  # Track frequency of outgoing ICMP requests
             return False, "High frequency of ICMP requests"
         return True, ""
-
     def http_handle(self, p):
         try:
             if hasattr(p['HTTP'],'file_data') and len(p['HTTP'].file_data) > 900:                      # Check if the packet has a large payload (using file_data)
@@ -135,7 +129,7 @@ class Analyzer:
                 return False, "Missing Host header"
             if len(p) > 1300:                                                       # Check for unusually large headers
                 return False, "Unusually large HTTP headers"
-            for f in ['authorization', 'cookie', 'set_cookie', 'proxy_authorization']:                  # Check for sensitive headers
+            for f in ['authorization','cookie','set_cookie','proxy_authorization']:                  # Check for sensitive headers
                 if hasattr(p['HTTP'], f):
                     return False, f"Sensitive header: {f}"
             if hasattr(p['HTTP'], 'user_agent') and 'python-requests' in p['HTTP'].user_agent.lower():  # Check for suspicious User-Agent
@@ -148,11 +142,9 @@ class Analyzer:
                     return False, f"Untrusted Referer: {referer}"
             if not self.track_attempts(p['IP'].dst, self.http_attempts, 60, 100):       # Track frequency of outgoing HTTP requests
                 return False, "High frequency of HTTP requests"
-            # p.show()
         except AttributeError as e:
             return False, f"HTTP layer access error: {e}"
         return True, "Valid HTTP packet"
-
     def validate_tls(self, p):
         try:
             if 'TLS' not in p:
@@ -177,7 +169,7 @@ class Analyzer:
 
     def DNS_set(self, dst_ip):
         return dst_ip in self.dns_attempts
-    def track_attempts(self, dst_ip, attempts, window=10, threshold=10):
+    def track_attempts(self,dst_ip,attempts,window=10,threshold=10):
         current_time = time.time()
         if dst_ip not in attempts:
             attempts[dst_ip] = []

@@ -9,13 +9,12 @@ from scapy.utils import wrpcap
 class AttackerSimulator:
     def __init__(self):
         self.packets = []
-        self.internal_ip = '127.0.0.1'
+        self.internal_ip = '10.9.0.4'
         self.external_ip = '8.8.8.8'
         self.trusted_domain = 'trusted-domain.com'
 
     def ip_packet(self):
         return Ether() / IP(src=self.internal_ip, dst=self.external_ip)
-
     def tcp_packet(self, dp, flags=''):
         tcp_packet = TCP(sport=random.randint(1024, 65535), dport=dp, flags=flags)
         return tcp_packet
@@ -24,10 +23,15 @@ class AttackerSimulator:
             return TLS(msg=TLSServerHello())
         elif t == 'c':
             return TLS(msg=TLSClientHello())
-
     def udp_packet(self, dp):
         return UDP(sport=random.randint(1024, 65535), dport=dp)
 
+    def no_prior_dns(self):
+        packet = self.ip_packet() / self.udp_packet(68)  # no prior DNS
+        self.packets.append(packet)
+
+        packet = self.ip_packet() / self.udp_packet(53) / DNS(rd=1,qd=DNSQR(qname='good.com'))  # Now send DNS for next packets
+        self.packets.append(packet)
     def simulate_tcp_attack(self):  # Generate TCP packets with suspicious properties
         print("Suspicious TCP packets")
         for _ in range(5):
@@ -48,7 +52,6 @@ class AttackerSimulator:
             packet = self.ip_packet() / self.tcp_packet(80) / Raw(load='X' * 2000)  # Large TCP segment
             self.packets.append(packet)
         time.sleep(1)
-
     def simulate_udp_attack(self):  # Generate UDP packets with suspicious properties
         print("Suspicious UDP packets")
         for _ in range(5):
@@ -58,7 +61,6 @@ class AttackerSimulator:
             packet = self.ip_packet() / self.udp_packet(123) / Raw(load='X' * 60)  # NTP packet with invalid length
             self.packets.append(packet)
         time.sleep(1)
-
     def simulate_dns_attack(self):  # Generate DNS packets with suspicious properties
         print("Suspicious DNS packets")
         for _ in range(5):
@@ -70,21 +72,12 @@ class AttackerSimulator:
             packet = self.ip_packet() / self.udp_packet(53) / DNS(rd=1,qd=DNSQR(qname='malicious.com')) / Raw(load='X' * 600)  # Possible DNS tunneling
             self.packets.append(packet)
         time.sleep(1)
-
-    def no_prior_dns(self):
-        packet = self.ip_packet() / self.udp_packet(68)  # no prior DNS
-        self.packets.append(packet)
-
-        packet = self.ip_packet() / self.udp_packet(53) / DNS(rd=1,qd=DNSQR(qname='good.com'))  # Now send DNS for next packets
-        self.packets.append(packet)
-
     def simulate_icmp_attack(self):  # Generate ICMP packets with suspicious properties
         print("Suspicious ICMP packets")
         for _ in range(5):
             packet = self.ip_packet() / ICMP() / Raw(load='X' * 100)  # Large ICMP packet
             self.packets.append(packet)
         time.sleep(1)
-
     def simulate_http_attack(self):  # Generate HTTP packets with suspicious properties
         print("Suspicious HTTP packets")
         for _ in range(5):
@@ -109,14 +102,12 @@ class AttackerSimulator:
             packet = self.ip_packet() / self.tcp_packet(80) / Raw(load='GET / HTTP/1.1\r\nHost: example.com\r\nHeader1: ' + 'X' * 1200 + '\r\n\r\n')  # Unusually large HTTP headers
             self.packets.append(packet)
         time.sleep(1)
-
     def simulate_frequent_icmp(self):  # Generate high frequency ICMP packets
         print("ICMP tunneling")
         for _ in range(15):
             packet = self.ip_packet() / ICMP()
             self.packets.append(packet)
             time.sleep(0.25)
-
     def simulate_frequent_dns(self):  # Generate high frequency DNS packets
         print("DNS tunneling")
         for _ in range(15):

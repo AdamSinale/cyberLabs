@@ -1,23 +1,18 @@
-services:
-  target:
-    build: .
-    container_name: target-10.9.0.4
-    tty: true
-    cap_add:
-      - ALL
-    environment:
-      - DISPLAY=host.docker.internal:0
-    volumes:
-      - ./volumes:/volumes
-      - /tmp/.X11-unix:/tmp/.X11-unix  # Allow access to X server
-    networks:
-      default:
-        ipv4_address: 10.9.0.4
-    command: bash -c "/etc/init.d/openbsd-inetd start && ip link set dev eth0 mtu 3000 && tail -f /dev/null"
+version: '3.8'
 
-networks:
-  default:
-    driver: bridge
-    ipam:
-      config:
-        - subnet: 10.9.0.0/24
+services:
+  pyshark_sniffer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ./volumes:/volumes  # Map the local "volumes" directory directly to "/volumes" in the container
+      - /tmp/.X11-unix:/tmp/.X11-unix  # Allow access to the host's X11 display
+    environment:
+      - DISPLAY=$DISPLAY  # Pass host's DISPLAY variable
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    network_mode: host
+    stdin_open: true  # Keep stdin open for debugging
+    tty: true         # Allocate a pseudo-TTY for debugging

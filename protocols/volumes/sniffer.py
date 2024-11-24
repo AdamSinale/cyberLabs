@@ -19,7 +19,6 @@ class Sniffer:
                     break                                        # Stop sniffing when flag off
                 self.buffer.put(packet)
         finally:
-            # Ensure all pending packets are processed and the capture is closed
             loop.run_until_complete(self.capture.close_async())  # Properly await the close_async method
             loop.close()  # add packet to buffer
 
