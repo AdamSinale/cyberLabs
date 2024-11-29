@@ -1,0 +1,106 @@
+\documentclass{article}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\title{Intrusion Detection System Project Documentation}
+\author{Adam Sin, Eliyahu Fridman}
+\date{2024}
+
+\begin{document}
+
+\maketitle
+
+\tableofcontents
+
+\section{Introduction}
+Our goal was to build an Intrusion Detection System (IDS) focusing on detecting packets suspicious of data exfiltration. We specifically examined the structure of packets to identify anomalies that could indicate malicious activities. The IDS was designed to sniff traffic on an interface, analyze each packet, and add the packet's general information to a list of sniffed packets, flagging those that failed certain tests along with the reason.
+
+\section{Project Structure}
+
+\subsection{Docker Setup}
+The IDS was run inside a Docker container for several reasons:
+\begin{itemize}
+    \item \textbf{Isolation}: By isolating the IDS inside a container, we ensure that only the intended traffic is analyzed. When running tests using TCP replay, we avoid interference from unrelated network packets.
+    \item \textbf{Docker-Compose and Dockerfile}: The Docker Compose file set up the container, while the Dockerfile specified the necessary dependencies, such as \texttt{tkinter}, \texttt{pyshark}, and more.
+\end{itemize}
+
+\subsection{Attack Simulation (\texttt{attacker.py})}
+The \texttt{attacker.py} script generates an \texttt{attack\_simulation.pcap} file, used for TCP replay testing. The script creates 132 packets, most of which are intended to simulate suspicious data exfiltration, while a small number are valid. All packets are outgoing, representing internal traffic being sent to unknown external IPs. This design ensures that only outgoing traffic is tested, as internal and purely incoming packets are not relevant for this IDS.
+
+\subsection{Sniffer (\texttt{sniffer.py})}
+The Sniffer class, implemented in \texttt{sniffer.py}, is responsible for sniffing and storing network packets using \texttt{pyshark}'s \texttt{LiveCapture} function. The sniffer maintains a queue as a buffer, which the analyzer later uses to test the packets. It also includes a flag that determines whether to continue sniffing or stop.
+
+\subsection{Analyzer (\texttt{analyzer.py})}
+The Analyzer class, implemented in \texttt{analyzer.py}, validates the captured packets by testing each packet to determine if it exhibits suspicious behavior. The \texttt{validate} function processes packets while the sniffer is active and there are packets to validate.
+
+The \texttt{isValid} function is used to determine whether each packet is valid. It invokes several protocol-specific handlers to perform these checks:
+\begin{itemize}
+    \item \textbf{TCP Handler}: Checks for unusual TCP ports, large HTTPS packets, and suspicious flag combinations.
+    \item \textbf{UDP Handler}: Checks for unusual UDP ports, and verifies that NTP packets are the correct size.
+    \item \textbf{DNS Handler}: Ensures DNS packets use the correct port and checks for signs of DNS tunneling.
+    \item \textbf{ICMP Handler}: Flags ICMP packets that are unusually large.
+    \item \textbf{HTTP Handler}: Checks for missing headers, large payloads, and potentially sensitive headers.
+    \item \textbf{TLS Handler}: Verifies TLS handshake details, including SNI, version, and cipher suite.
+\end{itemize}
+
+\subsection{Main Interface (\texttt{main.py})}
+The main interface, implemented using \texttt{tkinter}, integrates the Sniffer, Analyzer, and Attacker components into a cohesive UI. It provides the following functionality:
+\begin{itemize}
+    \item \textbf{Start Sniffing}: Initiates packet sniffing in real-time.
+    \item \textbf{Run Simulation}: Replays the \texttt{attack\_simulation.pcap} file to test the analyzer's detection capabilities.
+    \item \textbf{Statistics Display}: Graphically presents analysis results using Matplotlib, showing cumulative packet counts and protocol breakdowns.
+\end{itemize}
+
+\section{Test Details and Analysis}
+
+\subsection{TCP Tests}
+\begin{itemize}
+    \item \textbf{Port Checks}: Only certain ports are allowed for secure traffic (e.g., HTTP, HTTPS, DNS).
+    \item \textbf{Packet Size}: Large HTTPS packets (over 1460 bytes) are flagged, as they may contain suspicious payloads.
+    \item \textbf{Flag Combinations}: SYN and RST flags both set is an unusual combination and may indicate malicious intent. The PSH and URG flags are also monitored, as their presence with large packets may indicate an attempt to prioritize data exfiltration.
+\end{itemize}
+
+\subsection{UDP, DNS, and ICMP Tests}
+\begin{itemize}
+    \item \textbf{UDP Ports}: Only DNS, NTP, and DHCP ports are allowed.
+    \item \textbf{NTP Packet Size}: NTP packets must be exactly 48 bytes; deviations are flagged as suspicious.
+    \item \textbf{DNS Tests}: DNS packets must use port 53 and should not contain unusually large payloads, as this may indicate tunneling.
+    \item \textbf{ICMP Payload Size}: ICMP packets with payloads larger than 64 bytes are flagged.
+\end{itemize}
+
+\subsection{HTTP Tests}
+\begin{itemize}
+    \item \textbf{Host Header}: HTTP requests without a Host header are flagged, as this is mandatory for HTTP/1.1.
+    \item \textbf{Sensitive Headers}: Headers like \texttt{Authorization} and \texttt{Cookie} are flagged if present, as they may contain sensitive information.
+    \item \textbf{Suspicious User-Agent}: Requests with user-agents like \texttt{python-requests} are flagged as potentially malicious.
+    \item \textbf{Chunked Transfer Encoding}: HTTP requests using chunked transfer encoding are flagged as potentially suspicious.
+    \item \textbf{Untrusted Referer}: Requests with an untrusted Referer header are flagged.
+\end{itemize}
+
+\subsection{TLS Tests}
+\begin{itemize}
+    \item \textbf{TLS Handshake Types}: Only Client Hello and Server Hello messages are considered valid.
+    \item \textbf{SNI Verification}: If a TLS packet does not include an SNI (Server Name Indication), it may indicate a security breach.
+    \item \textbf{Version and Cipher Suite}: TLS packets must use secure versions (TLS 1.2 or 1.3) and secure cipher suites.
+\end{itemize}
+
+\section{Summary}
+The IDS implemented successfully identified a wide range of suspicious activities and provided insights into data exfiltration risks. Running the IDS within Docker provided isolation and consistency for testing. The main interface allows easy monitoring and testing of network traffic, providing users with real-time insights and graphical analysis.
+
+\section{Running the IDS}
+\begin{enumerate}
+    \item Download Xlaunch from \url{https://sourceforge.net/projects/vcxsrv/}
+    \item Run WSL (Windows Subsystem for Linux)
+    \item Navigate to the directory with \texttt{docker-compose.yml}
+    \item Run \texttt{docker-compose build}
+    \item Run \texttt{docker-compose up}
+    \item Execute \texttt{docker exec -it protocols\_pyshark\_sniffer\_1 bash}
+    \item Navigate to the \texttt{volumes} directory
+    \item Run \texttt{python3 main.py} to start the IDS
+\end{enumerate}
+
+\section{Statistics and Visualization}
+\textbf{Packets Analysis by Protocol}: The system counts the number of packets for each protocol (TCP, UDP, ICMP), categorizing them as valid or invalid.
+
+\textbf{Cumulative Packets}: Displays the cumulative number of valid and suspicious packets over time, giving insight into potential attack patterns.
+
+\end{document}

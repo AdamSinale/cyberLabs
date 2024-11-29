@@ -17,11 +17,11 @@ class App:
 
         self.root = root                                                         # Create UI
         self.root.title("Network Traffic Analyzer")
-        self.sniffBtn = tk.Button(root, text="Start Sniffing", command=self.mode)  # UI - Run sniffer
+        self.sniffBtn = tk.Button(root,text="Start Sniffing",command=self.mode)  # UI - Run sniffer
         self.sniffBtn.pack(pady=10)
-        self.statusLbl = tk.Label(root, text="Status: Idle", fg="green")         # UI - text
+        self.statusLbl = tk.Label(root,text="Status: Idle", fg="green")         # UI - text
         self.statusLbl.pack(pady=20)
-        self.replayBtn = tk.Button(root, text="Run Simulation", command=self.run_simulation)  # UI - Run attack simulation
+        self.replayBtn = tk.Button(root,text="Run Simulation",command=self.run_simulation)  # UI - Run attack simulation
         self.replayBtn.pack(pady=10)
 
         self.interface = 'Wi-Fi' if os.name == 'nt' else 'eth0'  # Default interface
